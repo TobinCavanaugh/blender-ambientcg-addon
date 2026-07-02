@@ -12,7 +12,7 @@ import bpy
 import os
 import urllib.request
 import zipfile
-from bpy.props import StringProperty, EnumProperty
+from bpy.props import StringProperty, EnumProperty, FloatProperty
 from pathlib import Path
 
 
@@ -109,7 +109,16 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
 
         mapping = nodes.new(type="ShaderNodeMapping")
         mapping.location = (-800, 0)
-        links.new(tex_coord.outputs["UV"], mapping.inputs["Vector"])
+
+        projection_mode = context.scene.ambientcg_projection         
+        blend_amt = 0.0
+        if projection_mode == 'FLAT':
+            links.new(tex_coord.outputs["UV"], mapping.inputs["Vector"])
+        else: 
+            links.new(tex_coord.outputs["Object"], mapping.inputs["Vector"])
+            blend_amt = context.scene.ambientcg_blend
+
+        
 
         # Find and load texture files
         for file in os.listdir(extract_path):
@@ -118,6 +127,8 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 color_tex.location = (-600, 600)
                 color_tex.image = bpy.data.images.load(str(extract_path / file))
                 color_tex.image.colorspace_settings.name = "sRGB"
+                color_tex.projection = projection_mode
+                color_tex.projection_blend = blend_amt
                 links.new(color_tex.outputs["Color"], principled.inputs["Base Color"])
                 links.new(mapping.outputs["Vector"], color_tex.inputs["Vector"])
             elif file.endswith("_Metalness.png"):
@@ -125,6 +136,8 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 metalness_tex.location = (-600, 300)
                 metalness_tex.image = bpy.data.images.load(str(extract_path / file))
                 metalness_tex.image.colorspace_settings.name = "Non-Color"
+                metalness_tex.projection = projection_mode
+                metalness_tex.projection_blend = blend_amt
                 links.new(metalness_tex.outputs["Color"], principled.inputs["Metallic"])
                 links.new(mapping.outputs["Vector"], metalness_tex.inputs["Vector"])
             elif file.endswith("_Roughness.png"):
@@ -132,6 +145,8 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 roughness_tex.location = (-600, 0)
                 roughness_tex.image = bpy.data.images.load(str(extract_path / file))
                 roughness_tex.image.colorspace_settings.name = "Non-Color"
+                roughness_tex.projection = projection_mode
+                roughness_tex.projection_blend = blend_amt
                 links.new(
                     roughness_tex.outputs["Color"], principled.inputs["Roughness"]
                 )
@@ -141,6 +156,8 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 normal_tex.location = (-600, -300)
                 normal_tex.image = bpy.data.images.load(str(extract_path / file))
                 normal_tex.image.colorspace_settings.name = "Non-Color"
+                normal_tex.projection = projection_mode
+                normal_tex.projection_blend = blend_amt
                 normal_map = nodes.new(type="ShaderNodeNormalMap")
                 normal_map.location = (-300, -300)
                 links.new(normal_tex.outputs["Color"], normal_map.inputs["Color"])
@@ -151,6 +168,8 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 displacement_tex.location = (-600, -600)
                 displacement_tex.image = bpy.data.images.load(str(extract_path / file))
                 displacement_tex.image.colorspace_settings.name = "Non-Color"
+                displacement_tex.projection = projection_mode
+                displacement_tex.projection_blend = blend_amt
                 displacement = nodes.new(type="ShaderNodeDisplacement")
                 displacement.location = (-300, -600)
                 links.new(
@@ -181,6 +200,12 @@ class MATERIAL_PT_ambientcg_fetcher(bpy.types.Panel):
 
         layout.prop(scene, "ambientcg_material_name", text="Material Name")
         layout.prop(scene, "ambientcg_resolution", text="Resolution")
+        layout.prop(scene, "ambientcg_projection", text="Projection")
+
+        if(context.scene.ambientcg_projection == 'BOX'):
+            layout.prop(scene, "ambientcg_blend", text="Blend", slider=True)
+
+
         layout.operator("material.fetch_and_create")
 
 
@@ -210,6 +235,23 @@ def register():
         ],
         default="1K",
     )
+    bpy.types.Scene.ambientcg_projection = EnumProperty(
+        name="Projection Mode",
+        description="Import mapping projection mode",
+        items=[
+            ('FLAT', "Flat (Default)", "Regular flat projection mapping"),
+            ('BOX', "Box (Triplanar)", "Triplanar box projection mapping"),
+            ('TUBE', "Cylinder", "Cylinder projection mapping"),
+            ('SPHERE', "Sphere", "Sphere projection mapping"),
+        ]
+    )
+    bpy.types.Scene.ambientcg_blend = FloatProperty(
+        name="Blend",
+        description="Blend amount for box projection",
+        soft_min=0.0,
+        soft_max=1.0,
+        default=1.0,
+    )
 
 
 def unregister():
@@ -217,6 +259,8 @@ def unregister():
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.ambientcg_material_name
     del bpy.types.Scene.ambientcg_resolution
+    del bpy.types.Scene.ambientcg_projection
+    del bpy.types.Scene.ambientcg_blend
 
 
 if __name__ == "__main__":
