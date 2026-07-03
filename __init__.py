@@ -23,7 +23,7 @@ class AmbientCGPreferences(bpy.types.AddonPreferences):
         name="Cache Folder",
         subtype="DIR_PATH",
         default=str(Path.home() / ".cache" / "ambientcg"),
-        description="Directory where AmbientCG texture PNGs will be stored",
+        description="Directory where AmbientCG texture PNGs/JPGs will be stored",
     )
 
     def draw(self, context):
@@ -46,8 +46,10 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
     def execute(self, context):
         material_name = context.scene.ambientcg_material_name
         resolution = context.scene.ambientcg_resolution
+        fmt = context.scene.ambientcg_format
+        fmt_lower = fmt.lower()
 
-        url = f"https://ambientcg.com/get?file={material_name}_{resolution}-PNG.zip"
+        url = f"https://ambientcg.com/get?file={material_name}_{resolution}-{fmt}.zip"
 
         cache_dir = get_cache_dir()
         extract_path = cache_dir / f"{material_name}_{resolution}"
@@ -122,7 +124,7 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
 
         # Find and load texture files
         for file in os.listdir(extract_path):
-            if file.endswith("_Color.png"):
+            if file.endswith(f"_Color.{fmt_lower}"):
                 color_tex = nodes.new(type="ShaderNodeTexImage")
                 color_tex.location = (-600, 600)
                 color_tex.image = bpy.data.images.load(str(extract_path / file))
@@ -131,7 +133,7 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 color_tex.projection_blend = blend_amt
                 links.new(color_tex.outputs["Color"], principled.inputs["Base Color"])
                 links.new(mapping.outputs["Vector"], color_tex.inputs["Vector"])
-            elif file.endswith("_Metalness.png"):
+            elif file.endswith(f"_Metalness.{fmt_lower}"):
                 metalness_tex = nodes.new(type="ShaderNodeTexImage")
                 metalness_tex.location = (-600, 300)
                 metalness_tex.image = bpy.data.images.load(str(extract_path / file))
@@ -140,7 +142,7 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 metalness_tex.projection_blend = blend_amt
                 links.new(metalness_tex.outputs["Color"], principled.inputs["Metallic"])
                 links.new(mapping.outputs["Vector"], metalness_tex.inputs["Vector"])
-            elif file.endswith("_Roughness.png"):
+            elif file.endswith(f"_Roughness.{fmt_lower}"):
                 roughness_tex = nodes.new(type="ShaderNodeTexImage")
                 roughness_tex.location = (-600, 0)
                 roughness_tex.image = bpy.data.images.load(str(extract_path / file))
@@ -151,7 +153,7 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                     roughness_tex.outputs["Color"], principled.inputs["Roughness"]
                 )
                 links.new(mapping.outputs["Vector"], roughness_tex.inputs["Vector"])
-            elif file.endswith("_NormalGL.png"):
+            elif file.endswith(f"_NormalGL.{fmt_lower}"):
                 normal_tex = nodes.new(type="ShaderNodeTexImage")
                 normal_tex.location = (-600, -300)
                 normal_tex.image = bpy.data.images.load(str(extract_path / file))
@@ -163,7 +165,7 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
                 links.new(normal_tex.outputs["Color"], normal_map.inputs["Color"])
                 links.new(normal_map.outputs["Normal"], principled.inputs["Normal"])
                 links.new(mapping.outputs["Vector"], normal_tex.inputs["Vector"])
-            elif file.endswith("_Displacement.png"):
+            elif file.endswith(f"_Displacement.{fmt_lower}"):
                 displacement_tex = nodes.new(type="ShaderNodeTexImage")
                 displacement_tex.location = (-600, -600)
                 displacement_tex.image = bpy.data.images.load(str(extract_path / file))
@@ -199,6 +201,7 @@ class MATERIAL_PT_ambientcg_fetcher(bpy.types.Panel):
         scene = context.scene
 
         layout.prop(scene, "ambientcg_material_name", text="Material Name")
+        layout.prop(scene, "ambientcg_format", text="Format", expand=True)
         layout.prop(scene, "ambientcg_resolution", text="Resolution")
         layout.prop(scene, "ambientcg_projection", text="Projection")
 
@@ -251,6 +254,16 @@ def register():
         soft_min=0.0,
         soft_max=1.0,
         default=1.0,
+    )
+
+    bpy.types.Scene.ambientcg_format = EnumProperty(
+        name="Format",
+        description="Format to download in",
+        items=[
+            ("PNG", "PNG", "PNG Format (Higher quality, larger files)"),
+            ("JPG", "JPG", "JPG Format (Lower quality, smaller files)")
+        ],
+        default="PNG",
     )
 
 
