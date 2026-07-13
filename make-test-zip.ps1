@@ -1,0 +1,1 @@
+Compress-Archive -Path .\__init__.py,.\blender_manifest.toml,.\README.md -DestinationPath ambientcg.zip -Force
