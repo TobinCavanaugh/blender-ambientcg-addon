@@ -54,7 +54,16 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
         cache_dir = get_cache_dir()
         extract_path = cache_dir / f"{material_name}_{resolution}"
 
-        if not extract_path.exists():
+        # Check if the cache folder exists and contains files of the selected format
+        cache_valid = False
+        if extract_path.is_dir():
+            try:
+                if any(file.lower().endswith(f".{fmt_lower}") for file in os.listdir(extract_path)):
+                    cache_valid = True
+            except Exception:
+                pass
+
+        if not cache_valid:
             # Download and extract the zip file
             zip_path = cache_dir / f"{material_name}_{resolution}.zip"
 
@@ -79,10 +88,12 @@ class MATERIAL_OT_fetch_and_create(bpy.types.Operator):
             try:
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
                     zip_ref.extractall(extract_path)
-                zip_path.unlink()  # Remove the zip file after extraction
             except Exception as e:
                 self.report({"ERROR"}, f"Failed to extract zip file: {str(e)}")
                 return {"CANCELLED"}
+            finally:
+                if zip_path.exists():
+                    zip_path.unlink()  # Remove the zip file after extraction (even if extraction failed)
         else:
             self.report(
                 {"INFO"}, f"Using cached material: {material_name}_{resolution}"
@@ -208,7 +219,6 @@ class MATERIAL_PT_ambientcg_fetcher(bpy.types.Panel):
         if(context.scene.ambientcg_projection == 'BOX'):
             layout.prop(scene, "ambientcg_blend", text="Blend", slider=True)
 
-
         layout.operator("material.fetch_and_create")
 
 
@@ -274,6 +284,7 @@ def unregister():
     del bpy.types.Scene.ambientcg_resolution
     del bpy.types.Scene.ambientcg_projection
     del bpy.types.Scene.ambientcg_blend
+    del bpy.types.Scene.ambientcg_format
 
 
 if __name__ == "__main__":
